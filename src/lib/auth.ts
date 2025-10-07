@@ -44,7 +44,12 @@ export const auth = betterAuth({
   },
   baseURL: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
   advanced: {
-    generateId: false,
+    database: {
+      generateId: () => {
+        // Generate a secure random ID for users using crypto
+        return crypto.randomUUID();
+      },
+    },
     crossSubDomainCookies: {
       enabled: process.env.NODE_ENV === 'production',
       domain: process.env.NODE_ENV === 'production' ? process.env.DOMAIN : undefined,
