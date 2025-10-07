@@ -9,15 +9,50 @@ export const auth = betterAuth({
     provider: "sqlite",
     schema,
   }),
+  secret: process.env.BETTER_AUTH_SECRET!,
+  session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24, // 1 day
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 5, // 5 minutes
+    },
+  },
+  user: {
+    additionalFields: {
+      role: {
+        type: "string",
+        required: false,
+        defaultValue: "user",
+      },
+      isActive: {
+        type: "boolean",
+        required: false,
+        defaultValue: true,
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
     minPasswordLength: 8,
+    maxPasswordLength: 128,
   },
-  trustedOrigins: [
-    "http://localhost:3000",
-    process.env.NEXT_PUBLIC_SITE_URL || "",
-  ],
+  rateLimit: {
+    window: 60, // 1 minute
+    max: 10, // 10 attempts per minute
+  },
+  baseURL: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+  advanced: {
+    generateId: false,
+    crossSubDomainCookies: {
+      enabled: process.env.NODE_ENV === 'production',
+      domain: process.env.NODE_ENV === 'production' ? process.env.DOMAIN : undefined,
+    },
+  },
+  trustedOrigins: process.env.NODE_ENV === 'production' 
+    ? [process.env.NEXT_PUBLIC_SITE_URL].filter(Boolean)
+    : ["http://localhost:3000", "http://localhost:3001"],
 });
 
 // Helper function to get current user from request

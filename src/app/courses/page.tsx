@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import Navigation from "@/components/Navigation"
-import { Search, Filter, Clock, Users, Star, BookOpen } from "lucide-react"
+import { Search, Clock, Users, Star, BookOpen } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -16,129 +16,84 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-const courses = [
-  {
-    id: "spanish-beginners",
-    title: "Spanish for Beginners",
-    description: "Master the basics of Spanish with interactive lessons and real-world conversations",
-    level: "Beginner",
-    duration: "8 weeks",
-    students: "120K",
-    rating: 4.8,
-    lessons: 45,
-    flag: "🇪🇸",
-    category: "Romance Languages"
-  },
-  {
-    id: "french-basics",
-    title: "French Basics",
-    description: "Learn essential French phrases and grammar for everyday conversations",
-    level: "Beginner",
-    duration: "6 weeks",
-    students: "95K",
-    rating: 4.7,
-    lessons: 38,
-    flag: "🇫🇷",
-    category: "Romance Languages"
-  },
-  {
-    id: "japanese-hiragana",
-    title: "Japanese Hiragana",
-    description: "Master Japanese writing system and basic conversational skills",
-    level: "Beginner",
-    duration: "10 weeks",
-    students: "80K",
-    rating: 4.9,
-    lessons: 52,
-    flag: "🇯🇵",
-    category: "East Asian Languages"
-  },
-  {
-    id: "german-intermediate",
-    title: "German Intermediate",
-    description: "Advance your German skills with complex grammar and vocabulary",
-    level: "Intermediate",
-    duration: "12 weeks",
-    students: "65K",
-    rating: 4.6,
-    lessons: 60,
-    flag: "🇩🇪",
-    category: "Germanic Languages"
-  },
-  {
-    id: "mandarin-beginners",
-    title: "Mandarin Chinese",
-    description: "Start your journey with the world's most spoken language",
-    level: "Beginner",
-    duration: "10 weeks",
-    students: "110K",
-    rating: 4.8,
-    lessons: 50,
-    flag: "🇨🇳",
-    category: "East Asian Languages"
-  },
-  {
-    id: "italian-conversation",
-    title: "Italian Conversation",
-    description: "Practice Italian through engaging conversations and cultural insights",
-    level: "Intermediate",
-    duration: "8 weeks",
-    students: "55K",
-    rating: 4.7,
-    lessons: 42,
-    flag: "🇮🇹",
-    category: "Romance Languages"
-  },
-  {
-    id: "korean-basics",
-    title: "Korean for Beginners",
-    description: "Learn Korean alphabet, pronunciation, and basic grammar",
-    level: "Beginner",
-    duration: "8 weeks",
-    students: "88K",
-    rating: 4.8,
-    lessons: 44,
-    flag: "🇰🇷",
-    category: "East Asian Languages"
-  },
-  {
-    id: "portuguese-brazilian",
-    title: "Brazilian Portuguese",
-    description: "Discover Brazilian culture while learning Portuguese",
-    level: "Beginner",
-    duration: "7 weeks",
-    students: "45K",
-    rating: 4.6,
-    lessons: 36,
-    flag: "🇧🇷",
-    category: "Romance Languages"
-  },
-  {
-    id: "arabic-modern",
-    title: "Modern Standard Arabic",
-    description: "Learn to read, write, and speak Modern Standard Arabic",
-    level: "Beginner",
-    duration: "12 weeks",
-    students: "38K",
-    rating: 4.7,
-    lessons: 55,
-    flag: "🇸🇦",
-    category: "Semitic Languages"
-  }
-]
+type Course = {
+  id: string
+  languageCode: string
+  title: string
+  description: string
+  level: string
+  category: string
+  flag?: string
+  duration?: string
+  students: number
+  ratingTenths: number
+  totalLessons: number
+}
 
 export default function CoursesPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [levelFilter, setLevelFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
+  const [items, setItems] = useState<Course[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const filteredCourses = courses.filter(course => {
-    const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         course.description.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesLevel = levelFilter === "all" || course.level === levelFilter
-    const matchesCategory = categoryFilter === "all" || course.category === categoryFilter
-    return matchesSearch && matchesLevel && matchesCategory
-  })
+  const fetchCourses = async () => {
+    try {
+      const params = new URLSearchParams()
+      if (searchQuery) params.set("search", searchQuery)
+      if (levelFilter !== "all") params.set("level", levelFilter)
+      if (categoryFilter !== "all") params.set("category", categoryFilter)
+      params.set("limit", "60")
+      const res = await fetch(`/api/courses?${params.toString()}`, { cache: "no-store" })
+      const data = await res.json()
+      setItems(data)
+    } catch (e) {
+      console.error("Failed to load courses", e)
+      setItems([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchCourses()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Real-time updates via SSE: refetch on updates
+  useEffect(() => {
+    const es = new EventSource("/api/courses/stream")
+    es.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data)
+        if (msg?.type === 'update') {
+          fetchCourses()
+        }
+      } catch {}
+    }
+    es.onerror = () => {
+      es.close()
+    }
+    return () => es.close()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, levelFilter, categoryFilter])
+
+  useEffect(() => {
+    // Refetch when filters change
+    fetchCourses()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, levelFilter, categoryFilter])
+
+  const filteredCourses = useMemo(() => {
+    // Server already filters; this is mainly for client-only filtering if needed
+    return items
+  }, [items])
+
+  const formatStudents = (n: number) => {
+    if (n >= 1000000) return `${(n/1000000).toFixed(1)}M`
+    if (n >= 1000) return `${(n/1000).toFixed(0)}K`
+    return String(n)
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5">
@@ -200,7 +155,9 @@ export default function CoursesPage() {
 
           {/* Results Count */}
           <div className="mb-6 text-muted-foreground">
-            Showing {filteredCourses.length} {filteredCourses.length === 1 ? 'course' : 'courses'}
+            {loading ? 'Loading courses...' : (
+              <>Showing {filteredCourses.length} {filteredCourses.length === 1 ? 'course' : 'courses'}</>
+            )}
           </div>
 
           {/* Courses Grid */}
@@ -224,14 +181,14 @@ export default function CoursesPage() {
                       <span>{course.duration}</span>
                       <span className="mx-2">•</span>
                       <BookOpen className="h-4 w-4" />
-                      <span>{course.lessons} lessons</span>
+                      <span>{course.totalLessons} lessons</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Users className="h-4 w-4" />
-                      <span>{course.students} students</span>
+                      <span>{formatStudents(course.students)} students</span>
                       <span className="mx-2">•</span>
                       <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span>{course.rating}</span>
+                      <span>{(course.ratingTenths / 10).toFixed(1)}</span>
                     </div>
                   </div>
                   <Link href={`/courses/${course.id}`}>
@@ -244,7 +201,7 @@ export default function CoursesPage() {
             ))}
           </div>
 
-          {filteredCourses.length === 0 && (
+          {!loading && filteredCourses.length === 0 && (
             <div className="text-center py-12">
               <p className="text-xl text-muted-foreground mb-4">No courses found matching your criteria</p>
               <Button onClick={() => {

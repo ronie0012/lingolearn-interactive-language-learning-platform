@@ -6,8 +6,11 @@ import { Card } from "@/components/ui/card"
 import Navigation from "@/components/Navigation"
 import { Globe, MessageCircle, Users, Award, BookOpen, TrendingUp, ArrowRight, Sparkles } from "lucide-react"
 import { motion } from "framer-motion"
+import { useSession } from "@/lib/auth-client"
 
 export default function Home() {
+  const { data: session, isPending } = useSession()
+  
   return (
     <div className="min-h-screen">
       <Navigation />
@@ -35,28 +38,66 @@ export default function Home() {
             </motion.div>
             
             <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
-              Master Any Language
-              <br />
-              at Your Own Pace
+              {session?.user ? (
+                <>
+                  Welcome back, {session.user.name?.split(' ')[0]}!
+                  <br />
+                  Continue Your Journey
+                </>
+              ) : (
+                <>
+                  Master Any Language
+                  <br />
+                  at Your Own Pace
+                </>
+              )}
             </h1>
             
             <p className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-3xl mx-auto">
-              Join millions of learners worldwide. Practice with AI, connect with native speakers, 
-              and achieve fluency faster than ever before.
+              {session?.user ? (
+                "Pick up where you left off and continue mastering new languages with personalized lessons and AI-powered practice."
+              ) : (
+                "Join millions of learners worldwide. Practice with AI, connect with native speakers, and achieve fluency faster than ever before."
+              )}
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Link href="/signup">
-                <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg px-8 py-6 h-auto group">
-                  Start Learning Free
-                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
-              <Link href="/login">
-                <Button size="lg" variant="outline" className="text-lg px-8 py-6 h-auto">
-                  Login
-                </Button>
-              </Link>
+              {isPending ? (
+                <div className="flex gap-4">
+                  <div className="h-14 w-48 animate-pulse bg-muted rounded-lg" />
+                  <div className="h-14 w-32 animate-pulse bg-muted rounded-lg" />
+                </div>
+              ) : session?.user ? (
+                // Authenticated user buttons
+                <>
+                  <Link href="/dashboard">
+                    <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg px-8 py-6 h-auto group">
+                      Go to Dashboard
+                      <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                  </Link>
+                  <Link href="/courses">
+                    <Button size="lg" variant="outline" className="text-lg px-8 py-6 h-auto">
+                      Browse Courses
+                    </Button>
+                  </Link>
+                </>
+              ) : (
+                // Guest user buttons
+                <>
+                  <Link href="/signup">
+                    <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg px-8 py-6 h-auto group">
+                      Start Learning Free
+                      <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                  </Link>
+                  <Link href="/login">
+                    <Button size="lg" variant="outline" className="text-lg px-8 py-6 h-auto">
+                      Login
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </motion.div>
 
@@ -134,22 +175,24 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 relative overflow-hidden">
-        <div className="absolute inset-0 gradient-bg opacity-10" />
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-          <h2 className="text-4xl md:text-5xl font-bold mb-6">
-            Ready to Start Your Journey?
-          </h2>
-          <p className="text-xl text-muted-foreground mb-8">
-            Join over 10 million learners achieving their language goals
-          </p>
-          <Link href="/signup">
-            <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg px-12 py-6 h-auto">
-              Get Started Now - It's Free
-            </Button>
-          </Link>
-        </div>
-      </section>
+      {!session?.user && (
+        <section className="py-20 relative overflow-hidden">
+          <div className="absolute inset-0 gradient-bg opacity-10" />
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6">
+              Ready to Start Your Journey?
+            </h2>
+            <p className="text-xl text-muted-foreground mb-8">
+              Join over 10 million learners achieving their language goals
+            </p>
+            <Link href="/signup">
+              <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg px-12 py-6 h-auto">
+                Get Started Now - It's Free
+              </Button>
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* Footer */}
       <footer className="bg-card border-t border-border py-12">

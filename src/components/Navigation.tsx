@@ -6,6 +6,7 @@ import { Menu, X, Globe, LogOut, User } from "lucide-react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { authClient, useSession } from "@/lib/auth-client"
+import { UserRole, canAccess } from "@/lib/auth-client-utils"
 import { toast } from "sonner"
 import {
   DropdownMenu,
@@ -20,6 +21,8 @@ export default function Navigation() {
   const [isOpen, setIsOpen] = useState(false)
   const { data: session, isPending, refetch } = useSession()
   const router = useRouter()
+  
+  const userRole = session?.user?.role as UserRole | undefined
 
   const handleSignOut = async () => {
     const { error } = await authClient.signOut()
@@ -56,12 +59,24 @@ export default function Navigation() {
             <Link href="/courses" className="text-foreground/80 hover:text-primary transition-colors">
               Courses
             </Link>
-            <Link href="/chatbot" className="text-foreground/80 hover:text-primary transition-colors">
-              AI Practice
-            </Link>
+            {canAccess(userRole, 'AI_CHATBOT') && (
+              <Link href="/chatbot" className="text-foreground/80 hover:text-primary transition-colors">
+                AI Practice
+              </Link>
+            )}
             <Link href="/community" className="text-foreground/80 hover:text-primary transition-colors">
               Community
             </Link>
+            {canAccess(userRole, 'ANALYTICS') && (
+              <Link href="/instructor" className="text-foreground/80 hover:text-primary transition-colors">
+                Instructor
+              </Link>
+            )}
+            {canAccess(userRole, 'ADMIN_PANEL') && (
+              <Link href="/admin" className="text-foreground/80 hover:text-primary transition-colors">
+                Admin
+              </Link>
+            )}
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
@@ -147,13 +162,15 @@ export default function Navigation() {
             >
               Courses
             </Link>
-            <Link 
-              href="/chatbot" 
-              className="block px-3 py-2 rounded-md text-foreground/80 hover:bg-accent hover:text-primary transition-colors"
-              onClick={() => setIsOpen(false)}
-            >
-              AI Practice
-            </Link>
+            {canAccess(userRole, 'AI_CHATBOT') && (
+              <Link 
+                href="/chatbot" 
+                className="block px-3 py-2 rounded-md text-foreground/80 hover:bg-accent hover:text-primary transition-colors"
+                onClick={() => setIsOpen(false)}
+              >
+                AI Practice
+              </Link>
+            )}
             <Link 
               href="/community" 
               className="block px-3 py-2 rounded-md text-foreground/80 hover:bg-accent hover:text-primary transition-colors"
@@ -161,6 +178,24 @@ export default function Navigation() {
             >
               Community
             </Link>
+            {canAccess(userRole, 'ANALYTICS') && (
+              <Link 
+                href="/instructor" 
+                className="block px-3 py-2 rounded-md text-foreground/80 hover:bg-accent hover:text-primary transition-colors"
+                onClick={() => setIsOpen(false)}
+              >
+                Instructor
+              </Link>
+            )}
+            {canAccess(userRole, 'ADMIN_PANEL') && (
+              <Link 
+                href="/admin" 
+                className="block px-3 py-2 rounded-md text-foreground/80 hover:bg-accent hover:text-primary transition-colors"
+                onClick={() => setIsOpen(false)}
+              >
+                Admin
+              </Link>
+            )}
             
             {isPending ? (
               <div className="h-20 animate-pulse bg-muted rounded" />

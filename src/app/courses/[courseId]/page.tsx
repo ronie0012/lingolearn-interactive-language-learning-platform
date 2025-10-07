@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -9,110 +9,123 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Navigation from "@/components/Navigation"
-import { ArrowLeft, Play, CheckCircle2, Lock, Clock, Users, Star, BookOpen, Award } from "lucide-react"
+import { ArrowLeft, Play, CheckCircle2, Clock, Users, Star, BookOpen } from "lucide-react"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { authClient } from "@/lib/auth-client"
 
-const courseData: { [key: string]: any } = {
-  "spanish-beginners": {
-    title: "Spanish for Beginners",
-    description: "Master the basics of Spanish with interactive lessons and real-world conversations",
-    level: "Beginner",
-    duration: "8 weeks",
-    students: "120K",
-    rating: 4.8,
-    totalLessons: 45,
-    completedLessons: 12,
-    flag: "🇪🇸",
-    instructor: "Maria Rodriguez",
-    instructorBio: "Native Spanish speaker with 10+ years of teaching experience",
-    modules: [
-      {
-        id: 1,
-        title: "Introduction to Spanish",
-        lessons: [
-          { id: 1, title: "Spanish Alphabet and Pronunciation", duration: "15 min", completed: true },
-          { id: 2, title: "Basic Greetings and Introductions", duration: "20 min", completed: true },
-          { id: 3, title: "Numbers 1-100", duration: "18 min", completed: true },
-          { id: 4, title: "Days of the Week and Months", duration: "15 min", completed: false }
-        ]
-      },
-      {
-        id: 2,
-        title: "Essential Grammar",
-        lessons: [
-          { id: 5, title: "Personal Pronouns", duration: "25 min", completed: false },
-          { id: 6, title: "Present Tense - Regular Verbs", duration: "30 min", completed: false },
-          { id: 7, title: "Gender and Articles", duration: "20 min", completed: false },
-          { id: 8, title: "Question Formation", duration: "22 min", completed: false }
-        ]
-      },
-      {
-        id: 3,
-        title: "Everyday Conversations",
-        lessons: [
-          { id: 9, title: "At the Restaurant", duration: "25 min", completed: false },
-          { id: 10, title: "Shopping and Prices", duration: "20 min", completed: false },
-          { id: 11, title: "Asking for Directions", duration: "18 min", completed: false },
-          { id: 12, title: "Making Plans with Friends", duration: "22 min", completed: false }
-        ]
-      }
-    ]
-  },
-  "french-basics": {
-    title: "French Basics",
-    description: "Learn essential French phrases and grammar for everyday conversations",
-    level: "Beginner",
-    duration: "6 weeks",
-    students: "95K",
-    rating: 4.7,
-    totalLessons: 38,
-    completedLessons: 8,
-    flag: "🇫🇷",
-    instructor: "Pierre Dubois",
-    instructorBio: "Parisian native and certified French language instructor",
-    modules: [
-      {
-        id: 1,
-        title: "French Fundamentals",
-        lessons: [
-          { id: 1, title: "French Pronunciation Guide", duration: "18 min", completed: true },
-          { id: 2, title: "Essential Greetings", duration: "15 min", completed: true },
-          { id: 3, title: "Numbers and Counting", duration: "20 min", completed: false }
-        ]
-      }
-    ]
-  },
-  "japanese-hiragana": {
-    title: "Japanese Hiragana",
-    description: "Master Japanese writing system and basic conversational skills",
-    level: "Beginner",
-    duration: "10 weeks",
-    students: "80K",
-    rating: 4.9,
-    totalLessons: 52,
-    completedLessons: 5,
-    flag: "🇯🇵",
-    instructor: "Yuki Tanaka",
-    instructorBio: "Tokyo native with expertise in teaching Japanese to foreigners",
-    modules: [
-      {
-        id: 1,
-        title: "Hiragana Basics",
-        lessons: [
-          { id: 1, title: "Introduction to Hiragana", duration: "15 min", completed: true },
-          { id: 2, title: "Vowels: あ、い、う、え、お", duration: "20 min", completed: true },
-          { id: 3, title: "K-row: か、き、く、け、こ", duration: "20 min", completed: false }
-        ]
-      }
-    ]
-  }
+type Lesson = { id: number; title: string; duration?: string; lessonType?: string }
+type Module = { id: number; index: number; title: string; description?: string; lessons: Lesson[] }
+type Course = {
+  id: string;
+  languageCode: string;
+  title: string;
+  description: string;
+  level: string;
+  category: string;
+  flag?: string;
+  duration?: string;
+  students: number;
+  ratingTenths: number;
+  totalLessons: number;
 }
 
 export default function CoursePage() {
   const params = useParams()
   const courseId = params.courseId as string
-  const course = courseData[courseId]
-  const [activeLesson, setActiveLesson] = useState(1)
+
+  const [course, setCourse] = useState<Course | null>(null)
+  const [modules, setModules] = useState<Module[]>([])
+  const [vocabulary, setVocabulary] = useState<any[]>([])
+  const [grammar, setGrammar] = useState<any[]>([])
+  const [culture, setCulture] = useState<any[]>([])
+  const [quiz, setQuiz] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [userProgress, setUserProgress] = useState<any>(null)
+
+  const fetchCourse = async () => {
+    try {
+      const res = await fetch(`/api/courses/${courseId}`, { cache: "no-store" })
+      if (!res.ok) throw new Error("Failed to load course")
+      const data = await res.json()
+      setCourse(data.course)
+      setModules(data.modules)
+      setVocabulary(data.vocabulary)
+      setGrammar(data.grammar)
+      setCulture(data.culture)
+      setQuiz(data.quiz)
+    } catch (e) {
+      console.error(e)
+      setCourse(null)
+      setModules([])
+      setVocabulary([])
+      setGrammar([])
+      setCulture([])
+      setQuiz([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    // session for user progress
+    const loadSession = async () => {
+      const session = await authClient.getSession()
+      if (session?.user?.id) setUserId(session.user.id)
+    }
+    loadSession()
+  }, [])
+
+  useEffect(() => {
+    if (!courseId) return
+    fetchCourse()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseId])
+
+  // Subscribe to SSE for real-time updates
+  useEffect(() => {
+    if (!courseId) return
+    const es = new EventSource(`/api/courses/${courseId}/stream`)
+    es.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data)
+        if (msg?.type === 'update') {
+          fetchCourse()
+        }
+      } catch {}
+    }
+    es.onerror = () => es.close()
+    return () => es.close()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseId])
+
+  // Load user progress for this language (fallback to language-level progress)
+  useEffect(() => {
+    const loadProgress = async () => {
+      if (!userId || !course?.languageCode) return
+      try {
+        const res = await fetch(`/api/user-progress?userId=${userId}&languageCode=${course.languageCode}`)
+        if (res.ok) {
+          const data = await res.json()
+          setUserProgress(data)
+        }
+      } catch (e) {
+        console.error("Failed to load user progress", e)
+      }
+    }
+    loadProgress()
+  }, [userId, course?.languageCode])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen">
+        <Navigation />
+        <div className="flex items-center justify-center min-h-screen">
+          <p>Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!course) {
     return (
@@ -130,7 +143,9 @@ export default function CoursePage() {
     )
   }
 
-  const progress = (course.completedLessons / course.totalLessons) * 100
+  const lessonsCompleted = userProgress?.lessonsCompleted ?? 0
+  const totalLessons = course.totalLessons ?? modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0)
+  const progressPct = totalLessons > 0 ? Math.round((lessonsCompleted / totalLessons) * 100) : 0
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5">
@@ -164,14 +179,14 @@ export default function CoursePage() {
                       <Clock className="h-5 w-5 text-primary" />
                       <div>
                         <p className="text-sm text-muted-foreground">Duration</p>
-                        <p className="font-medium">{course.duration}</p>
+                        <p className="font-medium">{course.duration || '—'}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <BookOpen className="h-5 w-5 text-primary" />
                       <div>
                         <p className="text-sm text-muted-foreground">Lessons</p>
-                        <p className="font-medium">{course.totalLessons}</p>
+                        <p className="font-medium">{totalLessons}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -185,7 +200,7 @@ export default function CoursePage() {
                       <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
                       <div>
                         <p className="text-sm text-muted-foreground">Rating</p>
-                        <p className="font-medium">{course.rating}</p>
+                        <p className="font-medium">{(course.ratingTenths / 10).toFixed(1)}</p>
                       </div>
                     </div>
                   </div>
@@ -193,29 +208,22 @@ export default function CoursePage() {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Your Progress</span>
-                      <span className="font-medium">{course.completedLessons}/{course.totalLessons} lessons</span>
+                      <span className="font-medium">{lessonsCompleted}/{totalLessons} lessons</span>
                     </div>
-                    <Progress value={progress} className="h-3" />
-                    <p className="text-sm text-muted-foreground">{Math.round(progress)}% complete</p>
+                    <Progress value={progressPct} className="h-3" />
+                    <p className="text-sm text-muted-foreground">{progressPct}% complete</p>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Instructor Card */}
+            {/* Actions Card */}
             <div>
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-xl">Your Instructor</CardTitle>
+                  <CardTitle className="text-xl">Ready?</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center mb-4">
-                    <div className="w-24 h-24 rounded-full bg-primary/10 mx-auto mb-3 flex items-center justify-center text-4xl">
-                      👤
-                    </div>
-                    <h3 className="font-semibold text-lg">{course.instructor}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">{course.instructorBio}</p>
-                  </div>
                   <Button className="w-full bg-primary hover:bg-primary/90">
                     <Play className="h-4 w-4 mr-2" />
                     Continue Learning
@@ -230,7 +238,7 @@ export default function CoursePage() {
             <TabsList className="grid w-full grid-cols-3 mb-6">
               <TabsTrigger value="curriculum">Curriculum</TabsTrigger>
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="reviews">Reviews</TabsTrigger>
+              <TabsTrigger value="quiz">Quiz</TabsTrigger>
             </TabsList>
 
             <TabsContent value="curriculum">
@@ -238,45 +246,31 @@ export default function CoursePage() {
                 <CardHeader>
                   <CardTitle>Course Curriculum</CardTitle>
                   <CardDescription>
-                    {course.modules.length} modules • {course.totalLessons} lessons
+                    {modules.length} modules • {totalLessons} lessons
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Accordion type="single" collapsible className="w-full">
-                    {course.modules.map((module: any) => (
+                    {modules.map((module: Module) => (
                       <AccordionItem key={module.id} value={`module-${module.id}`}>
                         <AccordionTrigger className="text-lg font-semibold">
                           <div className="flex items-center gap-3">
-                            <span>Module {module.id}: {module.title}</span>
+                            <span>Module {module.index + 1}: {module.title}</span>
                             <Badge variant="secondary">{module.lessons.length} lessons</Badge>
                           </div>
                         </AccordionTrigger>
                         <AccordionContent>
                           <div className="space-y-2 pl-4">
-                            {module.lessons.map((lesson: any) => (
-                              <div
-                                key={lesson.id}
-                                className="flex items-center justify-between p-3 rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
-                              >
-                                <div className="flex items-center gap-3">
-                                  {lesson.completed ? (
-                                    <CheckCircle2 className="h-5 w-5 text-primary" />
-                                  ) : (
-                                    <div className="h-5 w-5 rounded-full border-2 border-muted-foreground" />
-                                  )}
-                                  <div>
-                                    <p className="font-medium">{lesson.title}</p>
-                                    <p className="text-sm text-muted-foreground">{lesson.duration}</p>
-                                  </div>
+                            {module.lessons.map((lesson: Lesson) => (
+                              <div key={lesson.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-accent/50 transition-colors">
+                                <div>
+                                  <p className="font-medium">{lesson.title}</p>
+                                  <p className="text-sm text-muted-foreground">{lesson.duration || '—'}</p>
                                 </div>
-                                {lesson.completed ? (
-                                  <Button size="sm" variant="outline">Review</Button>
-                                ) : (
-                                  <Button size="sm" className="bg-primary hover:bg-primary/90">
-                                    <Play className="h-3 w-3 mr-1" />
-                                    Start
-                                  </Button>
-                                )}
+                                <Button size="sm" className="bg-primary hover:bg-primary/90">
+                                  <Play className="h-3 w-3 mr-1" />
+                                  Start
+                                </Button>
                               </div>
                             ))}
                           </div>
@@ -291,122 +285,89 @@ export default function CoursePage() {
             <TabsContent value="overview">
               <Card>
                 <CardHeader>
-                  <CardTitle>What You'll Learn</CardTitle>
+                  <CardTitle>Resources & What You'll Learn</CardTitle>
+                  <CardDescription>Vocabulary, grammar topics, and cultural content curated for this course</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
-                      <div>
-                        <h4 className="font-medium">Speaking Skills</h4>
-                        <p className="text-sm text-muted-foreground">Practice pronunciation and conversation</p>
-                      </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                      <h4 className="font-semibold mb-2">Vocabulary</h4>
+                      {vocabulary.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No vocabulary yet.</p>
+                      ) : (
+                        <ul className="text-sm space-y-1 max-h-48 overflow-y-auto pr-2">
+                          {vocabulary.slice(0, 20).map((v, i) => (
+                            <li key={i}>
+                              <span className="font-medium">{v.word}</span> — <span className="text-muted-foreground">{v.translation}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
-                    <div className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
-                      <div>
-                        <h4 className="font-medium">Grammar Fundamentals</h4>
-                        <p className="text-sm text-muted-foreground">Master essential grammar rules</p>
-                      </div>
+                    <div>
+                      <h4 className="font-semibold mb-2">Grammar</h4>
+                      {grammar.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No grammar lessons yet.</p>
+                      ) : (
+                        <ul className="text-sm space-y-2 max-h-48 overflow-y-auto pr-2">
+                          {grammar.slice(0, 10).map((g, i) => (
+                            <li key={i}>
+                              <span className="font-medium">{g.title}</span>
+                              <p className="text-muted-foreground line-clamp-2">{g.content}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
-                    <div className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
-                      <div>
-                        <h4 className="font-medium">Vocabulary Building</h4>
-                        <p className="text-sm text-muted-foreground">Learn 500+ common words and phrases</p>
-                      </div>
+                    <div>
+                      <h4 className="font-semibold mb-2">Cultural Content</h4>
+                      {culture.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No cultural items yet.</p>
+                      ) : (
+                        <ul className="text-sm space-y-1 max-h-48 overflow-y-auto pr-2">
+                          {culture.slice(0, 10).map((c, i) => (
+                            <li key={i}>
+                              <a href={c.url || '#'} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                                {c.title}
+                              </a>
+                              {c.description ? (
+                                <p className="text-muted-foreground line-clamp-2">{c.description}</p>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
-                    <div className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
-                      <div>
-                        <h4 className="font-medium">Cultural Insights</h4>
-                        <p className="text-sm text-muted-foreground">Understand culture and customs</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border-t pt-6">
-                    <h3 className="font-semibold text-lg mb-3">Course Requirements</h3>
-                    <ul className="space-y-2 text-muted-foreground">
-                      <li>• No prior knowledge required</li>
-                      <li>• Commitment to practice 15-30 minutes daily</li>
-                      <li>• Access to computer or mobile device</li>
-                      <li>• Enthusiasm to learn!</li>
-                    </ul>
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="reviews">
+            <TabsContent value="quiz">
               <Card>
                 <CardHeader>
-                  <CardTitle>Student Reviews</CardTitle>
-                  <CardDescription>See what other students are saying</CardDescription>
+                  <CardTitle>Practice Quiz</CardTitle>
+                  <CardDescription>Sample questions from this course</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-6">
-                    <div className="border-b pb-6">
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-xl">
-                          👤
+                  {quiz.length === 0 ? (
+                    <p className="text-muted-foreground">No quiz questions yet.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {quiz.slice(0, 5).map((q, i) => (
+                        <div key={i} className="border rounded-lg p-4">
+                          <p className="font-medium mb-2">{q.question}</p>
+                          <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {(q.options || []).map((opt: string, idx: number) => (
+                              <li key={idx} className="text-sm">
+                                • {opt}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-semibold">Sarah Johnson</h4>
-                            <div className="flex">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <Star key={star} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                              ))}
-                            </div>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">2 weeks ago</p>
-                          <p>Excellent course! The lessons are well-structured and easy to follow. I'm already having basic conversations in Spanish!</p>
-                        </div>
-                      </div>
+                      ))}
                     </div>
-
-                    <div className="border-b pb-6">
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center text-xl">
-                          👤
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-semibold">Mike Chen</h4>
-                            <div className="flex">
-                              {[1, 2, 3, 4].map((star) => (
-                                <Star key={star} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                              ))}
-                              <Star className="h-4 w-4 text-yellow-400" />
-                            </div>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">1 month ago</p>
-                          <p>Great content and interactive exercises. Would love to see more video content though.</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-xl">
-                          👤
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-semibold">Emma Rodriguez</h4>
-                            <div className="flex">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                <Star key={star} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                              ))}
-                            </div>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">3 months ago</p>
-                          <p>Best language learning platform I've used! The AI practice feature is incredibly helpful.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
